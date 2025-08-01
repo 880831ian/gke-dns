@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ip-load-generator
+  namespace: default # 確保與 ConfigMap 位於相同 Namespace
+spec:
+  replicas: 1 # 初始 Pod 數量，請根據你的總 RPS 目標和單 Pod 能力調整
+  selector:
+    matchLabels:
+      app: ip-load-generator
+      test-target: ip
+  template:
+    metadata:
+      labels:
+        app: ip-load-generator
+        test-target: ip
+    spec:
+      containers:
+      - name: k6
+        image: grafana/k6:latest # 使用 k6 官方 Docker 映像檔
+        command: ["k6"]
+        args:
+          - "run"
+          - "/etc/k6/load-test.js"
+        env:
+        - name: TEST_MODE
+          value: "ip_mode" # 告知腳本這是 IP 測試模式
+        - name: TARGET_HOST
+          value: "<自行更換>" # ***替換成你的內部 LB IP***
+        - name: TARGET_PORT
+          value: "80" # 根據你的服務端口調整
+        - name: API_PATH
+          value: "/" # 根據你的服務 API 路徑調整
+        volumeMounts:
+        - name: k6-script-volume
+          mountPath: /etc/k6 # 將 ConfigMap 掛載到此路徑
+      volumes:
+      - name: k6-script-volume
+        configMap:
+          name: k6-test-script # 引用上面定義的 ConfigMap

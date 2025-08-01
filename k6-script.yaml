@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-test-script
+  namespace: default # 確保與你的 Deployment 位於相同或可訪問的 Namespace
+data:
+  load-test.js: |
+    import http from 'k6/http';
+    import { check, sleep } from 'k6';
+
+    // 從環境變數中獲取測試模式和目標資訊
+    const TEST_MODE = __ENV.TEST_MODE; // 'ip_mode' 或 'dns_mode'
+    const TARGET_HOST = __ENV.TARGET_HOST; // IP 或 網域名稱
+    const TARGET_PORT = __ENV.TARGET_PORT || '80'; // 預設端口 80
+    const API_PATH = __ENV.API_PATH || '/'; // 預設路徑 /
+
+    // 每個 k6 Pod 的測試選項
+    export const options = {
+      vus: 1000,    // 每個 Pod 模擬 1000 個虛擬用戶 (可調整)
+      duration: '1m', // 每個 Pod 測試持續 1 分鐘 (可調整)
+
+      // 定義性能閾值 (可選，但推薦用於性能目標)
+      thresholds: {
+        'http_req_duration{scenario:ip_mode}': ['p(95)<200'], // IP 模式下 95% 請求應在 200ms 內
+        'http_req_duration{scenario:dns_mode}': ['p(95)<250'], // DNS 模式下 95% 請求應在 250ms 內
+        'http_req_failed': ['rate<0.01'], // 失敗率應低於 1%
+      },
+    };
+
+    export default function () {
+      const url = `http://${TARGET_HOST}:${TARGET_PORT}${API_PATH}`;
+      const scenarioTag = TEST_MODE; // 使用 TEST_MODE 作為場景標籤
+
+      const res = http.get(url, { tags: { scenario: scenarioTag } });
+
+      check(res, {
+        'status is 200': (r) => r.status === 200,
+      });
+
+      // 你可以在這裡加入針對 time_namelookup 的檢查，或僅依賴 k6 的總結報告
+      // console.log(`[${scenarioTag}] ${url} - time_namelookup: ${res.timings.namelookup}`);
+
+      sleep(0.1); // 每次請求後短暫等待，控制 RPS，避免過度壓垮測試生成器本身
+    }

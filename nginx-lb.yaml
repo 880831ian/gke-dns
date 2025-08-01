@@ -1,0 +1,39 @@
+# nginx-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 5 # 你可以根據需要調整副本數量
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+---
+# nginx-internal-lb-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-internal-lb-service
+  annotations:
+    # 這是創建內部負載平衡器的關鍵 annotation
+    cloud.google.com/load-balancer-type: "internal"
+spec:
+  selector:
+    app: nginx
+  type: LoadBalancer # 類型仍然是 LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 80 # Service 暴露的端口
+      targetPort: 80 # Pod 內部的端口
